@@ -1,0 +1,30 @@
+services:
+  multicast_server_1:
+    build:
+      context: ./multicast_server/
+    ports:
+      - 4569
+    networks:
+      - mynetwork
+
+  multicast_server_2:
+    build:
+      context: ./multicast_server/
+    ports:
+      - 4569
+    networks:
+      - mynetwork
+      
+  multicast_server_3:
+    build:
+      context: ./multicast_server/
+    ports:
+      - 4569
+    networks:
+      - mynetwork
+
+networks:
+   mynetwork:
+     enable_ipv6: true
+     ipam:
+       driver: default
