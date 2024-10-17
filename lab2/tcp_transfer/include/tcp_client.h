@@ -27,7 +27,7 @@ namespace client {
             Client& operator=(const Client &server) = delete;
     };
 
-    /*class ClientException: public std::exception {
+    class ClientException: public std::exception {
         protected:
             std::string message_;
 
@@ -42,23 +42,28 @@ namespace client {
             OpenSocketException(const std::string& message, const int err_code);
     };
 
-    class SetsockoptFailedException final: public ClientException {
+    class ConnectFailedException final: public ClientException {
         public:
-            SetsockoptFailedException(const std::string& message, const int err_code);
+            ConnectFailedException(const std::string& message, const int err_code);
     };
 
-    class BindFailedException final: public ClientException {
+    class OpenFileException final : public ClientException {
         public:
-            BindFailedException(const std::string& message, const int err_code);
+            OpenFileException();
     };
 
-    class IncorrectIpAddrException final: public ClientException {
+    class FileNotExistsException final : public ClientException {
         public:
-            IncorrectIpAddrException(const std::string& message);
+            FileNotExistsException();
     };
 
-    class RecvfromFailedException final: public ClientException {
+    class SendFailedException final: public ClientException {
         public:
-            RecvfromFailedException(const std::string& message, const int err_code);
-    };*/
+            SendFailedException(const std::string& message, const int err_code);
+    };
+
+    class RecvFailedException final : public ClientException {
+        public:
+            RecvFailedException(const std::string& message, const int err_code);
+    };
 }
