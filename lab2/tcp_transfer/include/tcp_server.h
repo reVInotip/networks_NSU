@@ -22,9 +22,13 @@ namespace server {
         
         private:
             void client_thread_routine(int client_fd) const;
+            string get_filename_from_stream(int client_fd, string &end) const;
+            double get_filesize_from_stream(int client_fd, string init, string &end) const;
+            bool save_data_from_stream_to_file(int client_fd, string path_to_file, string init, double expected_file_size) const;
+            string make_output_file_name(const string &init) const;
             
         public:
-            Server(const int port, const int buffer_size = 1000);
+            Server(const int port, const int buffer_size = 1024);
             Server(const Server &server) = delete;
             ~Server();
             void accept_connections() const;
@@ -33,7 +37,7 @@ namespace server {
             Server& operator=(const Server &server) = delete;
     };
 
-    /*class ServerException: public std::exception {
+    class ServerException: public std::exception {
         protected:
             std::string message_;
 
@@ -48,13 +52,33 @@ namespace server {
             OpenSocketException(const std::string& message, const int err_code);
     };
 
-    class IncorrectIpAddrException final: public ServerException {
+    class BindFailedException final : public ServerException {
         public:
-            IncorrectIpAddrException(const std::string& message);
+            BindFailedException(const std::string& message, const int err_code);
     };
 
-    class SendtoFailedException final: public ServerException {
+    class SetListenFailedException final : public ServerException {
         public:
-            SendtoFailedException(const std::string& message, const int err_code);
-    };*/
+            SetListenFailedException(const std::string& message, const int err_code);
+    };
+
+    class RecvFailedException final : public ServerException {
+        public:
+            RecvFailedException(const std::string& message, const int err_code);
+    };
+
+    class OpenFileException final : public ServerException {
+        public:
+            OpenFileException();
+    };
+
+    class SendFailedException final: public ServerException {
+        public:
+            SendFailedException(const std::string& message, const int err_code);
+    };
+
+    class AcceptFailedException final: public ServerException {
+        public:
+            AcceptFailedException(const std::string& message, const int err_code);
+    };
 }
