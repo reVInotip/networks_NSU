@@ -117,6 +117,14 @@ bool Server::save_data_from_stream_to_file(int client_fd, string path_to_file, s
     std::unique_ptr<char[]> buffer {new char[buffer_size_]};
     auto global_start = std::chrono::high_resolution_clock::now();
     auto timer_start = std::chrono::high_resolution_clock::now();
+
+    if ((index = buffer_str.find("_$@&data?_")) != std::string::npos) {
+        buffer_str = buffer_str.substr(0, index);
+        total_recieved_bytes_count += buffer_str.size();
+        out.write(buffer_str.c_str(), buffer_str.size());
+        curr_size += buffer_str.size() / 1e6;
+        goto EXIT;
+    }
     while (true) {
         memset(buffer.get(), 0, buffer_size_);
 
@@ -163,6 +171,7 @@ bool Server::save_data_from_stream_to_file(int client_fd, string path_to_file, s
         }
     }
 
+EXIT:
     bool is_transfer_success = fabs(curr_size - expected_file_size) < 1e6;
 
     const std::chrono::duration<double, std::milli> time_elapsed =
@@ -178,7 +187,7 @@ bool Server::save_data_from_stream_to_file(int client_fd, string path_to_file, s
     out.flush();
     out.close();
 
-    return fabs(curr_size - expected_file_size) < 1e6;
+    return is_transfer_success;
 }
 
 string Server::make_output_file_name(const string &init) const {

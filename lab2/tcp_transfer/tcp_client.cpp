@@ -72,7 +72,7 @@ void Client::send_file_to_server() const {
     if (count_send_bytes < size.size())
         throw SendFailedException {strerror(errno), errno};
 
-    constexpr size_t data_size  = 1024;
+    constexpr size_t data_size  = 8 * 1024;
     std::unique_ptr<char[]> data {new char[data_size]};
     while (in) {
         memset(data.get(), 0, data_size);

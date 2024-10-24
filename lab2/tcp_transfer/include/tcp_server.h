@@ -28,7 +28,7 @@ namespace server {
             string make_output_file_name(const string &init) const;
             
         public:
-            Server(const int port, const int buffer_size = 1024);
+            Server(const int port, const int buffer_size = 8 * 1024);
             Server(const Server &server) = delete;
             ~Server();
             void accept_connections() const;
