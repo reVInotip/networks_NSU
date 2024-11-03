@@ -10,6 +10,29 @@ using std::string;
 namespace server {
     class Server final {
         private:
+            class Printer final {
+                private:
+                    std::chrono::_V2::system_clock::time_point global_start_;
+                    std::chrono::_V2::system_clock::time_point timer_start_;
+                    const std::chrono::milliseconds timeout_;
+                    double total_recieved_bytes_count_;
+                    bool is_first_print1_;
+                    bool is_first_print2_;
+                
+                public:
+                    Printer();
+                    void print_recv_info(int count_recv_bytes,
+                                        std::chrono::_V2::system_clock::time_point &recv_start,
+                                        string &filename);
+                    void print_recv_info_with_percents(int count_recv_bytes,
+                                                        std::chrono::_V2::system_clock::time_point &recv_start,
+                                                        string &filename,
+                                                        double curr_size,
+                                                        double expected_file_size);
+                    void print_recv_end(bool is_transfer_success);
+            };
+
+        private:
             const string workdir_ = "./uploads";
 
         private:
@@ -18,13 +41,12 @@ namespace server {
         private:
             int connection_request_sockfd_;
             int connection_request_port_;
-            const std::chrono::milliseconds timeout_ {3000};
         
         private:
             void client_thread_routine(int client_fd) const;
-            string get_filename_from_stream(int client_fd, string &end) const;
-            double get_filesize_from_stream(int client_fd, string init, string &end) const;
-            bool save_data_from_stream_to_file(int client_fd, string path_to_file, string init, double expected_file_size) const;
+            string get_filename_from_stream(int client_fd, string &end, Printer &printer) const;
+            double get_filesize_from_stream(int client_fd, string &filename, string init, string &end, Printer &printer) const;
+            bool save_data_from_stream_to_file(int client_fd, string path_to_file, string init, double expected_file_size, Printer &printer) const;
             string make_output_file_name(const string &init) const;
             
         public:
