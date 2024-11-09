@@ -82,12 +82,12 @@ void Server::Printer::print_recv_info
     const std::chrono::duration<double, std::milli> time_elapsed =
                 std::chrono::high_resolution_clock::now() - timer_start_;
     
-    double speed = count_recv_bytes / elapsed.count();
+    double speed = (count_recv_bytes / 1000.0) / elapsed.count();
     total_recieved_bytes_count_ += count_recv_bytes;
         
     std::cout << "=======================================" << std::endl;
-    std::cout << filename << ": Current speed (Kb): " << speed << std::endl;
-    std::cout << filename << ": Middle speed (Kb): " << total_recieved_bytes_count_ / time_elapsed.count() << std::endl;
+    std::cout << filename << ": Current speed (Mb): " << speed << std::endl;
+    std::cout << filename << ": Middle speed (Mb): " << (total_recieved_bytes_count_ / 1000.0) / time_elapsed.count() << std::endl;
     std::cout << filename << ": " << time_elapsed.count() / 1000.0 << " seconds have passed" << std::endl;
     std::cout << "=======================================" << std::endl;
     global_start_ = std::chrono::high_resolution_clock::now();
@@ -116,12 +116,12 @@ void Server::Printer::print_recv_info_with_percents
     const std::chrono::duration<double, std::milli> time_elapsed =
                 std::chrono::high_resolution_clock::now() - timer_start_;
     
-    double speed = count_recv_bytes / elapsed.count();
+    double speed = (count_recv_bytes / 1000.0) / elapsed.count();
     total_recieved_bytes_count_ += count_recv_bytes;
         
     std::cout << "=======================================" << std::endl;
-    std::cout << filename << ": Current speed (Kb): " << speed << std::endl;
-    std::cout << filename << ": Middle speed (Kb): " << total_recieved_bytes_count_ / time_elapsed.count() << std::endl;
+    std::cout << filename << ": Current speed (Mb): " << speed << std::endl;
+    std::cout << filename << ": Middle speed (Mb): " << (total_recieved_bytes_count_ / 1000.0) / time_elapsed.count() << std::endl;
     std::cout << filename << ": Recieved " << (curr_size / expected_file_size)  * 100.0 << "%" << std::endl;
     std::cout << filename << ": " << time_elapsed.count() / 1000.0 << " seconds have passed" << std::endl;
     std::cout << "=======================================" << std::endl;
@@ -275,7 +275,7 @@ void Server::client_thread_routine(int client_fd) const {
         std::cout << "Start receive file with name " << filename << std::endl;
 
         double file_size = get_filesize_from_stream(client_fd, filename, end, end, printer);
-        std::cout << "Expected size of file \"" << filename << "\": " << file_size << " Kb" << std::endl;
+        std::cout << "Expected size of file \"" << filename << "\": " << file_size / 1000.0 << " Mb" << std::endl;
 
         bool is_success = save_data_from_stream_to_file(client_fd, filename, end, file_size, printer);
         printer.print_recv_end(is_success);
