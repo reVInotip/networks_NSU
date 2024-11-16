@@ -5,7 +5,8 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/lab2/tcp_transfer/include",
-                "${workspaceFolder}/lab1/multicast_server/include"
+                "${workspaceFolder}/lab1/multicast_server/include",
+                "${workspaceFolder}/lab3/socks_proxy/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/g++",

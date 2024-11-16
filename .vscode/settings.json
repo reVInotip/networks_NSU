@@ -68,6 +68,8 @@
         "sstream": "cpp",
         "cerrno": "cpp",
         "internet": "cpp",
-        "timer": "cpp"
+        "timer": "cpp",
+        "variant": "cpp",
+        "set": "cpp"
     }
 }
