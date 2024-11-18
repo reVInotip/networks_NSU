@@ -8,7 +8,9 @@
 #include <iostream>
 #include <tuple>
 #include <sstream>
+#include <cpp-dns.hpp>
 
+using namespace YukiWorkshop;
 using namespace socks_server;
 using std::stringstream;
 using Socket::SockState::CONNECTED;
@@ -16,14 +18,19 @@ using Socket::SockState::CONNECTING;
 using Socket::SockState::NEW;
 
 SocksServer::SocksServer(const int port, const size_t buffer_size, unsigned char version):
-    connection_request_sock_ {Socket::SockFamily::IPv4, Socket::SockType::STREAM, buffer_size}, server_socks_version_ {version},
-    buffer_size_ {buffer_size}
+    connection_request_sock_ {Socket::SockFamily::IPv4, Socket::SockType::STREAM, buffer_size},
+    domain_names_resolver_sock_ {Socket::SockFamily::IPv4, Socket::SockType::DATAGRAMM, buffer_size},
+    server_socks_version_ {version}, buffer_size_ {buffer_size}
 {
     connection_request_sock_.setoptions(Socket::SockOptions::NONBLOCK);
     connection_request_sock_.bind_to(port);
     connection_request_sock_.make_listen(10);
+
+    domain_names_resolver_sock_.setoptions(Socket::SockOptions::NONBLOCK);
+    domain_names_resolver_sock_.bind_to(port + 1);
     
     poll_ctl_add(connection_request_sock_.get_fd(), POLLIN);
+    poll_ctl_add(domain_names_resolver_sock_.get_fd(), POLLIN);
 }
 
 SocksServer::~SocksServer() {
@@ -124,6 +131,7 @@ void SocksServer::server_communication_routine(int fd) noexcept {
 
 void SocksServer::client_communication_routine(int fd) noexcept {
     Socket *socket = client_sockets_[fd];
+    //std::cout << socket << std::cout;
     string client_address;
 
     int n = 0;
@@ -166,12 +174,12 @@ void SocksServer::client_communication_routine(int fd) noexcept {
             unsigned char answer[max_answer_len] = {0};
             
             // connect by IPv4
-            if (socket->buffer_.get()[1] == 0x01) {
-                if (n < static_cast<int>(ipv4_answer_len)) break;
+            if (socket->buffer_.get()[1] == static_cast<unsigned char>(AddrType::IPv4)) {
+                if (n < static_cast<int>(ipv4_request_len)) break; // Do something
 
                 answer[0] = server_socks_version_; // set SOCKS protocol version
 
-                std::cout << "[!] getting command to make TCP/IP connect from client: " << client_address << std::endl;
+                std::cout << "[!] getting command to make TCP/IP connect by ip from client: " << client_address << std::endl;
                 
                 if (socket->buffer_.get()[3] == static_cast<unsigned char>(AddrType::IPv4)) {
                     string address = std::to_string(socket->buffer_.get()[4]) + "." +
@@ -242,7 +250,55 @@ void SocksServer::client_communication_routine(int fd) noexcept {
                         break;
                     }
                 } else if (socket->buffer_.get()[3] == static_cast<unsigned char>(AddrType::DOMAIN)) {
-                    break;
+                    if (n < static_cast<int>(min_request_len)) break; // Do something
+
+                    answer[0] = server_socks_version_; // set SOCKS protocol version
+
+                    std::cout << "[!] getting command to make TCP/IP connect by domain name from client: " << client_address << std::endl;
+
+                    int len = static_cast<int>(socket->buffer_.get()[4]);
+                    string domain_name;
+
+                    int i = 5;
+                    for (int j = 0; j < len; ++i, ++j) {
+                        domain_name += socket->buffer_.get()[i];
+                    }
+
+                    uint16_t port = (socket->buffer_.get()[i] & 0b1111111100000000) | (socket->buffer_.get()[i + 1] & 0b0000000011111111);
+
+                    std::cerr << len << std::endl;
+                    std::cout << domain_name << std::endl;
+
+                    boost::asio::io_service iosvc;
+                    DNSResolver d(iosvc);
+
+                    d.resolve_a4(domain_name, [this, port, fd, domain_name, len](int err, auto& addrs, auto& qname, auto& cname, uint ttl) {
+                        if (!err) {
+                            std::cout << "Query: " << qname << "\n";
+                            std::cout << "CNAME: " << cname << "\n";
+                            std::cout << "TTL: " << ttl << "\n";
+
+                            for (auto &it : addrs) {
+                                string server_ip = it.to_string();
+                                std::cout << "A Record: " << server_ip << "\n";
+                                Socket sock {Socket::SockFamily::IPv4, Socket::SockType::DATAGRAMM, buffer_size_};
+
+                                string ip = domain_names_resolver_sock_.get_ip() == "localhost" ?
+                                    "127.0.0.1" : domain_names_resolver_sock_.get_ip();
+
+                                domain_to_ip_[domain_name] = std::pair {server_ip, port};
+
+                                std::cout << ip << ":" << domain_names_resolver_sock_.get_port() << std::endl;
+
+                                string message = std::to_string(fd) + "%" + std::to_string(len) + "%" + domain_name;
+                                
+                                sock.send_to(ip, domain_names_resolver_sock_.get_port(), message.c_str(), message.size());
+                                break;
+                            }
+                        }
+                    });
+
+                    iosvc.run();
                 }
             } else {
                 std::cerr << "[-] client (" << client_address << ") command is wrong or unsupported" << std::endl;
@@ -292,6 +348,59 @@ void SocksServer::accept_connections() {
         for (size_t i = 0; i < pfds_.size(); i++) {
             if (pfds_[i].revents == 0) continue;
 
+            if (pfds_[i].fd == domain_names_resolver_sock_.get_fd()) {
+                string domain_name;
+                int fd;
+                int len;
+
+                char buf[500];
+                int n = recv(domain_names_resolver_sock_.get_fd(), buf, 500, 0);
+
+                std::cout << "here " << buf << std::endl;
+
+                string part;
+                stringstream stream0 {buf};
+                std::getline(stream0, part, '%');
+                fd = std::atoi(part.c_str());
+
+                std::getline(stream0, part, '%');
+                len = std::atoi(part.c_str());
+
+                std::getline(stream0, domain_name, '%');
+
+                unsigned char request[10] =
+                {
+                    0x05, // protocol version
+                    0x01, // establish TCP/IP connection
+                    0x00, // special byte
+                    0x01, // IPv4 addres
+                    0x00,
+                    0x00,
+                    0x00,
+                    0x00, // for IPv4 address
+                    0x00,
+                    0x00 // for port
+                };
+
+                uint16_t server_port = domain_to_ip_[domain_name].second;
+
+                std::cout << domain_name << ":" << server_port << std::endl;
+
+                string ip_part;
+                stringstream stream {domain_to_ip_[domain_name].first};
+                for (int i = 4; std::getline(stream, ip_part, '.'); ++i) {
+                    request[i] = static_cast<unsigned char>(std::atoi(ip_part.c_str()));
+                }
+
+                request[8] = (server_port >> 8) & 0b1111111100000000;
+                request[9] = server_port & 0b0000000011111111;
+
+                std::cout << "here " << static_cast<int>(request[8]) << static_cast<int>(request[9]) << std::endl;
+
+                if (send(fd, request, 10, 0) < 0)
+                    throw "something";
+            }
+
             if (pfds_[i].fd == connection_request_sock_.get_fd()) {
 				/* handle new connection */
                 Socket *conn_sock;
@@ -332,4 +441,4 @@ void SocksServer::accept_connections() {
             pfds_[i].revents = 0;
         }
     }
-}  
+}

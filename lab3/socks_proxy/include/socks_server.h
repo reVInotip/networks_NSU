@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <memory>
+#include <tuple>
 
 #pragma once
 
@@ -49,6 +50,8 @@ namespace socks_server {
             SockType type_;
             int sockfd_;
             size_t buffer_size_;
+            string ip_;
+            uint16_t port_;
         
         public:
             SockState state_;
@@ -70,9 +73,12 @@ namespace socks_server {
             bool is_nonblocking() const;
             Socket *accept_connection(string &address) const;
             int get_fd() const noexcept;
+            uint16_t get_port() const noexcept;
+            string get_ip() const noexcept;
 
             int receive(string &address) const;
             void send_to(const void *message, int message_size) const;
+            void send_to(const string &ip, uint16_t port, const void *message, int message_size) const;
     };
 
     class SocksServer {
@@ -103,17 +109,18 @@ namespace socks_server {
 
         private:
             Socket connection_request_sock_;
+            Socket domain_names_resolver_sock_;
             unsigned char server_socks_version_;
             size_t buffer_size_;
             unordered_map<uint16_t, Socket*> client_sockets_;
             unordered_map<uint16_t, Socket*> server_sockets_;
+            unordered_map<string, std::pair<string, uint16_t>> domain_to_ip_;
             vector<struct pollfd> pfds_;
 
             static constexpr size_t max_answer_len = 262;
             static constexpr size_t ipv4_answer_len = 10;
-        
-        private:
-            void send_error_message_to_client(Socket *client_socket, RequestAnswer error_answer) const noexcept;
+            static constexpr size_t ipv4_request_len = 10;
+            static constexpr size_t min_request_len = 8;
 
         private:
             void poll_ctl_add(int fd, uint32_t events) noexcept;

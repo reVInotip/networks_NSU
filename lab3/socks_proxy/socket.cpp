@@ -4,13 +4,14 @@
 #include <fcntl.h>
 #include <cerrno>
 #include <cstring>
+#include <iostream>
 
 using namespace socks_server;
 
 //==================Socket=====================
 
 Socket::Socket(SockFamily family, SockType type, size_t buffer_size):
-    family_ {family}, type_ {type}, buffer_size_ {buffer_size}, buffer_ {new unsigned char [buffer_size]}
+    family_ {family}, type_ {type}, buffer_size_ {buffer_size}, buffer_ {new unsigned char [buffer_size]}, ip_ {"localhost"}, port_ {0}
 {
     sockfd_ = socket(static_cast<int>(family), static_cast<int>(type), 0);
     if (sockfd_ < 0) throw OpenSocketException {strerror(errno), errno};
@@ -37,6 +38,9 @@ void Socket::bind_to(uint16_t port) {
             (socklen_t) sizeof(server_sockaddr))
         < 0
     ) throw BindFailedException {strerror(errno), errno};
+
+    port_ = port;
+    std::cout << port << std::endl;
 }
 
 void Socket::bind_to(SockFamily family, const string &ip, uint16_t port) {
@@ -56,6 +60,9 @@ void Socket::bind_to(SockFamily family, const string &ip, uint16_t port) {
             (socklen_t) sizeof(server_sockaddr))
         < 0
     ) throw BindFailedException {strerror(errno), errno};
+
+    ip_ = ip;
+    port_ = port;
 }
 
 void Socket::connect_with(const string &ip, uint16_t port) {
@@ -120,6 +127,14 @@ int Socket::get_fd() const noexcept {
     return sockfd_;
 }
 
+uint16_t Socket::get_port() const noexcept {
+    return port_;
+}
+
+string Socket::get_ip() const noexcept {
+    return ip_;
+}
+
 int Socket::receive(string &address) const {
     struct sockaddr_in src_addr;
     socklen_t socklen = sizeof(src_addr);
@@ -143,6 +158,21 @@ int Socket::receive(string &address) const {
 
 void Socket::send_to(const void *message, int message_size) const {
     if (send(sockfd_, message, message_size, 0) < 0)
+        throw SendFailedException {strerror(errno), errno};
+}
+
+void Socket::send_to(const string &ip, uint16_t port, const void *message, int message_size) const {
+    sockaddr_in server_sockaddr;
+    memset(&server_sockaddr, 0, sizeof(server_sockaddr));
+
+    server_sockaddr.sin_family = AF_INET;
+    server_sockaddr.sin_port = htons(port);
+    server_sockaddr.sin_addr.s_addr = inet_addr(ip.c_str());
+
+    if (
+        sendto(sockfd_, message, message_size, 0, (const sockaddr *) &server_sockaddr,
+            (socklen_t) sizeof(server_sockaddr)) < 0
+    )
         throw SendFailedException {strerror(errno), errno};
 }
 
