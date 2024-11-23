@@ -1,24 +1,27 @@
-#include "socks_server.h"
+#include "socket.h"
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <cerrno>
 #include <cstring>
 #include <iostream>
+#include <memory>
 
-using namespace socks_server;
+using namespace socks_socket;
 
 //==================Socket=====================
 
-Socket::Socket(SockFamily family, SockType type, size_t buffer_size):
-    family_ {family}, type_ {type}, buffer_size_ {buffer_size}, buffer_ {new unsigned char [buffer_size]}, ip_ {"localhost"}, port_ {0}
+Socket::Socket(SockFamily family, SockType type, size_t buffer_capacity):
+    family_ {family}, type_ {type}, ip_ {"localhost"}, port_ {0}, buffer_capacity_ {buffer_capacity},
+    buffer_ {new unsigned char [buffer_capacity]}
 {
     sockfd_ = socket(static_cast<int>(family), static_cast<int>(type), 0);
     if (sockfd_ < 0) throw OpenSocketException {strerror(errno), errno};
 }
 
-Socket::Socket(int sockfd, SockFamily family, SockType type, size_t buffer_size):
-    family_ {family}, type_ {type}, sockfd_ {sockfd}, buffer_size_ {buffer_size}, buffer_ {new unsigned char [buffer_size]} {}
+Socket::Socket(int sockfd, SockFamily family, SockType type, size_t buffer_capacity):
+    family_ {family}, type_ {type}, sockfd_ {sockfd}, buffer_capacity_ {buffer_capacity},
+    buffer_ {new unsigned char [buffer_capacity]} {}
 
 Socket::~Socket() {
     close(sockfd_);
@@ -40,7 +43,6 @@ void Socket::bind_to(uint16_t port) {
     ) throw BindFailedException {strerror(errno), errno};
 
     port_ = port;
-    std::cout << port << std::endl;
 }
 
 void Socket::bind_to(SockFamily family, const string &ip, uint16_t port) {
@@ -73,6 +75,8 @@ void Socket::connect_with(const string &ip, uint16_t port) {
     server_sockaddr.sin_port = htons(port);
     server_sockaddr.sin_addr.s_addr = inet_addr(ip.c_str());
 
+    std::cout << ip << std::endl;
+
     if (
         connect(sockfd_,
             (const sockaddr *) &server_sockaddr,
@@ -100,7 +104,7 @@ Socket *Socket::accept_connection(string &address) const {
     
     address = str_addr + string {":"} + std::to_string(ntohs(cli_addr.sin_port));
 
-    return new Socket {conn_sock, family_, type_, buffer_size_};
+    return new Socket {conn_sock, family_, type_, buffer_capacity_};
 }
 
 void Socket::make_listen(int count_connections) {
@@ -111,7 +115,10 @@ void Socket::make_listen(int count_connections) {
 }
 
 void Socket::setoptions(SockOptions options) {
-    if (fcntl(sockfd_, F_SETFL, fcntl(sockfd_, F_GETFL, 0) | static_cast<int>(options)) == -1)
+    int prev_options = fcntl(sockfd_, F_GETFL, 0);
+    if (prev_options < 0) throw SetoptionsFailedException {strerror(errno), errno};
+
+    if (fcntl(sockfd_, F_SETFL, prev_options | static_cast<int>(options)) < 0)
         throw SetoptionsFailedException {strerror(errno), errno};
 }
 
@@ -135,13 +142,13 @@ string Socket::get_ip() const noexcept {
     return ip_;
 }
 
-int Socket::receive(string &address) const {
+int Socket::receive(string &address) {
     struct sockaddr_in src_addr;
     socklen_t socklen = sizeof(src_addr);
     char str_addr[INET_ADDRSTRLEN];
 
-    bzero(buffer_.get(), buffer_size_);
-    int n = recvfrom(sockfd_, buffer_.get(), buffer_size_, 0, (struct sockaddr *) &src_addr, &socklen);
+    bzero(buffer_.get(), buffer_capacity_);
+    int n = recvfrom(sockfd_, buffer_.get(), buffer_capacity_, 0, (struct sockaddr *) &src_addr, &socklen);
     if (n < 0) {
         if (is_nonblocking() && (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOSPC))
             return -1;
@@ -153,15 +160,31 @@ int Socket::receive(string &address) const {
     
     address = str_addr + string {":"} + std::to_string(ntohs(src_addr.sin_port));
 
+    buffer_size_ = n;
+
     return n;
 }
 
-void Socket::send_to(const void *message, int message_size) const {
+int Socket::receive() {
+    bzero(buffer_.get(), buffer_capacity_);
+    int n = recv(sockfd_, buffer_.get(), buffer_capacity_, 0);
+    if (n < 0) {
+        if (is_nonblocking() && (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOSPC))
+            return -1;
+        throw ReceiveFailedException {strerror(errno), errno};    
+    }
+
+    buffer_size_ = n;
+
+    return n;
+}
+
+void Socket::send_to(const void *message, size_t message_size) const {
     if (send(sockfd_, message, message_size, 0) < 0)
         throw SendFailedException {strerror(errno), errno};
 }
 
-void Socket::send_to(const string &ip, uint16_t port, const void *message, int message_size) const {
+void Socket::send_to(const string &ip, uint16_t port, const void *message, size_t message_size) const {
     sockaddr_in server_sockaddr;
     memset(&server_sockaddr, 0, sizeof(server_sockaddr));
 

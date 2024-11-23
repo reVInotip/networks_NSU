@@ -10,5 +10,7 @@ int main(void) {
         server.accept_connections();
     } catch (SockException &e) {
         std::cerr << "Can not create SOCKS server: " << e.what() << std::endl;
+    } catch (std::bad_alloc &e) {
+        std::cerr << "Can not create SOCKS server: " << e.what() << std::endl;
     }
 }
