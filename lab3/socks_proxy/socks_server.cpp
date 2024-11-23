@@ -8,9 +8,11 @@
 #include <iostream>
 #include <tuple>
 #include <sstream>
-#include <cpp-dns.hpp>
 
-using namespace YukiWorkshop;
+#include "build/async_dns_resolver/include/dns_resolve/dns_resolve.h"
+//#include <cpp-dns.hpp>
+
+//using namespace YukiWorkshop;
 
 using namespace socks_server;
 using std::stringstream;
@@ -92,11 +94,12 @@ void SocksServer::accept_connections() {
     int nfds;
     string address;
 
-    boost::asio::io_service io_svc;
-    DNSResolver *resolver = new DNSResolver {io_svc};
+    //boost::asio::io_service io_svc;
+    //DNSResolver *resolver = new DNSResolver {io_svc};
+    dnsresolve::Resolver *resolver = new dnsresolve::Resolver {};
 
     while (true) {
-        io_svc.run();
+        //io_svc.run();
         nfds = poll(pfds_.data(), pfds_.size(), -1);
         if (nfds < 0) {
             std::cerr << "[-] something went wrong: " << strerror(errno) << std::endl;

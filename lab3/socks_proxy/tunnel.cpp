@@ -1,8 +1,9 @@
 #include "tunnel.h"
 #include "socket.h"
-#include <cpp-dns.hpp>
+//#include <ares.h>
+//#include <cpp-dns.hpp>
 
-using namespace YukiWorkshop;
+//using namespace YukiWorkshop;
 
 #include <iostream>
 #include <string>
@@ -14,7 +15,7 @@ using namespace tunnel;
 
 Tunnel::Tunnel(): state_ {TunnelState::UNINIT} {};
 
-Tunnel::Tunnel(unsigned char socks_version, DNSResolver *resolver, Socket *resolver_sock, Socket *client, size_t buffer_capacity) noexcept:
+Tunnel::Tunnel(unsigned char socks_version, dnsresolve::Resolver *resolver, Socket *resolver_sock, Socket *client, size_t buffer_capacity) noexcept:
     server_socks_version_ {socks_version}, state_ {TunnelState::UNINIT}, resolver_ {resolver}, resolver_sock_ {resolver_sock},
     client_ {client}
 {
@@ -111,6 +112,41 @@ void Tunnel::send_to_client() noexcept {
     //std::cerr << "send to client " << server_->buffer_.get() << std::endl;
 }
 
+
+/* Callback that is called when DNS query is finished */
+/*void addrinfo_cb(void *arg, int status, int timeouts,
+                        struct ares_addrinfo *result) {
+    Tunnel *curr_tunnel = (Tunnel *) arg;
+    std::cout << "Result: " << ares_strerror(status) << " timeouts: " << timeouts << std::endl;
+
+    string server_ip;
+    if (result) {
+        struct ares_addrinfo_node *node;
+        for (node = result->nodes; node != NULL; node = node->ai_next) {
+            char addr_buf[64] = "";
+            const void *ptr = nullptr;
+            if (node->ai_family == AF_INET) {
+                const struct sockaddr_in *in_addr =
+                (const struct sockaddr_in *)((void *)node->ai_addr);
+                ptr = &in_addr->sin_addr;
+            } else if (node->ai_family == AF_INET6) {
+                const struct sockaddr_in6 *in_addr =
+                (const struct sockaddr_in6 *)((void *)node->ai_addr);
+                ptr = &in_addr->sin6_addr;
+            } else {
+                continue;
+            }
+            ares_inet_ntop(node->ai_family, ptr, addr_buf, sizeof(addr_buf));
+            printf("Addr: %s\n", addr_buf);
+
+            server_ip = addr_buf;
+        }
+    }
+
+    curr_tunnel->try_connect(server_ip, curr_tunnel->get_client_connected_port());
+    ares_freeaddrinfo(result);
+}*/
+
 void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
     if (type == RequestType::OUT && source == RequestSource::CLIENT) {
         send_to_client();
@@ -154,8 +190,6 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
                 } else if (client_->buffer_.get()[3] == static_cast<unsigned char>(AddrType::DOMAIN)) {
                     if (client_->buffer_size_ < static_cast<int>(min_request_len)) return; // Do something
 
-                    std::cout << "[!] getting command to make TCP/IP connect by domain name from client: " << client_->connected_address_ << std::endl;
-
                     int len = static_cast<int>(client_->buffer_.get()[4]);
                     string domain_name;
 
@@ -164,9 +198,40 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
                         domain_name += client_->buffer_.get()[i];
                     }
 
+
+                    std::cout << "[!] getting command to make TCP/IP connect by domain name: " << domain_name
+                        << " from client: " << client_->connected_address_ << std::endl;
+
                     uint16_t port = (client_->buffer_.get()[i] & 0b1111111100000000) | (client_->buffer_.get()[i + 1] & 0b0000000011111111);
 
-                    resolver_->resolve_a4(domain_name, [this, port, len](int err, auto& addrs, auto& qname, auto& cname, uint ttl) {
+                    resolver_->AsyncResolve(domain_name, [&](const dnsresolve::Result& result) -> void {
+                        if (result.HasError()) {
+                            std::cout << result.Error() << std::endl;
+                        } else {
+                            std::cout << result.Name() << std::endl;
+                            for (auto &it : result) {
+                                string server_ip;
+                                std::stringstream ss {server_ip};
+                                ss << it;
+                                Socket sock {Socket::SockFamily::IPv4, Socket::SockType::DATAGRAMM, client_->buffer_capacity_};
+                                sock.setoptions(Socket::SockOptions::NONBLOCK);
+
+                                string ip = resolver_sock_->get_ip() == "localhost" ?
+                                    "127.0.0.1" : resolver_sock_->get_ip();
+
+                                this->server_->connected_address_ = ip;
+                                this->server_->connected_port_ = port;
+
+                                string message = std::to_string(this->client_->get_fd());
+                                
+                                sock.send_to(ip, resolver_sock_->get_port(), message.c_str(), message.size());
+                                break;
+                            }
+                        }
+                    });
+                    resolver_->Run();
+
+                    /*resolver_->resolve_a4(domain_name, [this, port, len](int err, auto& addrs, auto& qname, auto& cname, uint ttl) {
                         if (!err) {
                             for (auto &it : addrs) {
                                 string server_ip = it.to_string();
@@ -185,7 +250,13 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
                                 break;
                             }
                         }
-                    });
+                    });*/
+
+                    //prepare dns request
+                    /*ares_getaddrinfo(resolver_->channel_, domain_name.c_str(), NULL,
+                        &(resolver_->hints_), addrinfo_cb, this);*/
+                    
+                    std::cout << "[!] start resolve domain name\n";
                 }
             } else {
                 std::cerr << "[-] client (" << client_->connected_address_ << ") command is wrong or unsupported" << std::endl;
@@ -194,6 +265,8 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
             if (client_->buffer_.get()[1] != 0x00) {
                 //...
             }
+
+            //ares_process_fd(resolver_->channel_, client_->get_fd(), client_->get_fd());
 
             server_->buffer_.get()[0] = server_socks_version_;
             server_->buffer_.get()[1] = static_cast<unsigned char>(AuthMethod::NO_AUTH);

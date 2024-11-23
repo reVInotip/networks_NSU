@@ -5,6 +5,7 @@
 #include <poll.h>
 #include <memory>
 #include <tuple>
+#include <ares.h>
 #include "tunnel.h"
 #include "socket.h"
 #include "observe.h"

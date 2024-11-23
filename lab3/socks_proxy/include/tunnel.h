@@ -1,10 +1,11 @@
 #include "observe.h"
 #include "socket.h"
-#include <cpp-dns.hpp>
+//#include <cpp-dns.hpp>
+#include "build/async_dns_resolver/include/dns_resolve/dns_resolve.h"
 
 #pragma once
 
-using namespace YukiWorkshop;
+//using namespace YukiWorkshop;
 using namespace observe;
 using namespace socks_socket;
 
@@ -85,7 +86,7 @@ namespace tunnel {
             socks_socket::Socket *server_;
             socks_socket::Socket *client_;
             TunnelState state_;
-            DNSResolver *resolver_;
+            dnsresolve::Resolver *resolver_;
             socks_socket::Socket *resolver_sock_;
 
             static constexpr size_t ipv4_answer_len = 10;
@@ -99,7 +100,7 @@ namespace tunnel {
 
         public:
             Tunnel();
-            Tunnel(unsigned char socks_version, DNSResolver *resolver, socks_socket::Socket *resolver_sock,
+            Tunnel(unsigned char socks_version, dnsresolve::Resolver *resolver, socks_socket::Socket *resolver_sock,
                 Socket *client, size_t buffer_capacity) noexcept;
 
             void recieve_from_client() noexcept;

@@ -6,7 +6,7 @@ OUT_DIR = ./tmp
 
 all: $(OBJ)
 	cd $(OUT_DIR) && \
-	$(CXX) $(CXXFLAGS) $^ -lstdc++fs -o ../app
+	$(CXX) $(CXXFLAGS) $^ -lstdc++fs -lcares -o ../app
 
 $(OBJ): %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -I $(INCLUDE_DIR) -c $^ -o $(OUT_DIR)/$@
