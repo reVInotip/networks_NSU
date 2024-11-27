@@ -1,7 +1,7 @@
 #include "observe.h"
 #include "socket.h"
 //#include <cpp-dns.hpp>
-#include "build/async_dns_resolver/include/dns_resolve/dns_resolve.h"
+#include "dns_resolve/dns_resolve.h"
 
 #pragma once
 
@@ -12,9 +12,22 @@ using namespace socks_socket;
 namespace tunnel {
     class DeleteFromPollVectorEvent: public Event {
         public:
-            int fd_;
+            int client_fd_;
+            int server_fd_;
 
-            DeleteFromPollVectorEvent(int fd): fd_ {fd} {};
+            DeleteFromPollVectorEvent(int client_fd, int server_fd): client_fd_ {client_fd}, server_fd_ {server_fd} {};
+
+            int get_data1() noexcept override {
+                return client_fd_;
+            };
+
+            int get_data2() noexcept override {
+                return server_fd_;
+            };
+
+            EvType get_type() noexcept override {
+                return EvType::DEL;
+            }
     };
 
     class AddToPollVectorEvent: public Event {
@@ -23,6 +36,7 @@ namespace tunnel {
             int server_fd_;
 
             AddToPollVectorEvent(int client_fd, int server_fd): client_fd_ {client_fd}, server_fd_ {server_fd} {};
+
             int get_data1() noexcept override {
                 return client_fd_;
             };
@@ -30,6 +44,10 @@ namespace tunnel {
             int get_data2() noexcept override {
                 return server_fd_;
             };
+
+            EvType get_type() noexcept override {
+                return EvType::ADD;
+            }
     };
 
     class Tunnel: public Observable {
@@ -98,23 +116,25 @@ namespace tunnel {
                 return server_socks_version_ == client_socks_version;
             }
 
-        public:
-            Tunnel();
-            Tunnel(unsigned char socks_version, dnsresolve::Resolver *resolver, socks_socket::Socket *resolver_sock,
-                Socket *client, size_t buffer_capacity) noexcept;
-
             void recieve_from_client() noexcept;
             void recieve_from_server() noexcept;
             void send_to_client() noexcept;
             void send_to_server() noexcept;
-            void request_handler(RequestType type, RequestSource source) noexcept;
             void disconnect() noexcept;
 
+        public:
+            Tunnel();
+            Tunnel(unsigned char socks_version, dnsresolve::Resolver *resolver, socks_socket::Socket *resolver_sock,
+                Socket *client, size_t buffer_capacity) noexcept;
+            ~Tunnel();
+
+            void request_handler(RequestType type, RequestSource source) noexcept;
             int get_clientfd() noexcept;
             int get_serverfd() noexcept;
             string get_client_connected_ip() noexcept;
             uint16_t get_client_connected_port() noexcept;
             bool is_disconnect() noexcept;
             bool try_connect(const string &ip, uint16_t port);
+            void close_connection() noexcept;
     };
 };

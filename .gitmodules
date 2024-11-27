@@ -4,3 +4,6 @@
 [submodule "lab3/socks_proxy/build/async_dns_resolver"]
 	path = lab3/socks_proxy/build/async_dns_resolver
 	url = https://github.com/AlpsMonaco/async_dns_resolver
+[submodule "lab3/socks_proxy/dns-resolver/async_dns_resolver"]
+	path = lab3/socks_proxy/dns-resolver/async_dns_resolver
+	url = https://github.com/AlpsMonaco/async_dns_resolver.git

@@ -6,12 +6,23 @@
 namespace observe {
     class Event {
         public:
+            enum class EvType {
+                ADD,
+                DEL,
+                INV
+            };
+
+        public:
             virtual int get_data1() noexcept {
                 return -1;
             }
 
             virtual int get_data2() noexcept {
                 return -1;
+            }
+
+            virtual EvType get_type() noexcept {
+                return EvType::INV;
             }
     };
 
@@ -28,7 +39,6 @@ namespace observe {
         public:
             void add(Observer *observer) {
                 observers_.push_back(observer);
-                std::cout << "add sub\n";
             }
 
             void update(Event &event) noexcept {

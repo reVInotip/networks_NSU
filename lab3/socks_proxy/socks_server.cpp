@@ -9,7 +9,7 @@
 #include <tuple>
 #include <sstream>
 
-#include "build/async_dns_resolver/include/dns_resolve/dns_resolve.h"
+#include "dns_resolve/dns_resolve.h"
 //#include <cpp-dns.hpp>
 
 //using namespace YukiWorkshop;
@@ -41,93 +41,68 @@ void SocksServer::poll_ctl_add(int fd, uint32_t events) noexcept {
     pfds_.push_back(pollfd);
 }
 
-std::vector<pollfd>::iterator SocksServer::poll_ctl_delete(int fd) noexcept {
+void SocksServer::poll_ctl_delete(int fd) noexcept {
     for (auto it = pfds_.begin(); it != pfds_.end(); ++it) {
         if ((*it).fd == fd) {
-            return pfds_.erase(it);
+            pfds_.erase(it);
+            return;
         }
     }
-
-    return pfds_.end();
 }
 
-bool SocksServer::try_disconnect(int fd) noexcept {
-    std::vector<pollfd>::iterator next = pfds_.end();
-
-    if (client_connections_.contains(fd)) {
-        if (client_connections_[fd]->is_disconnect()) {
-            auto n = poll_ctl_delete(client_connections_[fd]->get_clientfd());
-            if (n != pfds_.end()) next = n;
-            poll_ctl_delete(client_connections_[fd]->get_serverfd());
-
-            server_connections_.erase(client_connections_[fd]->get_serverfd());
-            client_connections_.erase(fd);
-
-            return true;
-        }
-    } else if (server_connections_.contains(fd)) {
-        if (server_connections_[fd]->is_disconnect()) {
-            poll_ctl_delete(server_connections_[fd]->get_clientfd());
-            auto n = poll_ctl_delete(server_connections_[fd]->get_serverfd());
-            if (n != pfds_.end()) next = n;
-
-            client_connections_.erase(server_connections_[fd]->get_serverfd());
-            server_connections_.erase(fd);
-
-            return true;
-        }
+void SocksServer::try_disconnect(std::pair<int, int> sock_pair) noexcept {
+    if (!client_connections_.contains(sock_pair.first) && !server_connections_.contains(sock_pair.second)) {
+        std::cerr << "[-] can not brake connection\n";
     }
 
-    return false;
+    if (client_connections_.contains(sock_pair.first)) {
+        poll_ctl_delete(sock_pair.first);
+        delete client_connections_[sock_pair.first];
+        client_connections_.erase(sock_pair.first);
+    }
+
+    if (server_connections_.contains(sock_pair.second)) {
+        poll_ctl_delete(sock_pair.second);
+        server_connections_.erase(sock_pair.second);
+    }
 }
 
 void SocksServer::update(observe::Event &e) noexcept {
     int server_fd_ = e.get_data2();
     int client_fd_ = e.get_data1();
-    if (server_fd_ < 0 || client_fd_ < 0) return;
-
-    server_connections_[server_fd_] = client_connections_[client_fd_];
-    poll_ctl_add(server_fd_, POLLIN | POLLOUT | POLLRDHUP | POLLHUP);
+    if (e.get_type() == Event::EvType::ADD) {
+        server_connections_[server_fd_] = client_connections_[client_fd_];
+        poll_ctl_add(server_fd_, POLLIN | POLLOUT | POLLRDHUP | POLLHUP);
+    } else if (e.get_type() == Event::EvType::DEL) {
+        queue_to_delte_.push_back(std::pair<int, int>(client_fd_, server_fd_));
+    }
 }
 
 void SocksServer::accept_connections() {
     int nfds;
     string address;
-
-    //boost::asio::io_service io_svc;
-    //DNSResolver *resolver = new DNSResolver {io_svc};
     dnsresolve::Resolver *resolver = new dnsresolve::Resolver {};
 
     while (true) {
-        //io_svc.run();
         nfds = poll(pfds_.data(), pfds_.size(), -1);
         if (nfds < 0) {
             std::cerr << "[-] something went wrong: " << strerror(errno) << std::endl;
             break;
         }
-        /*for (int i = 0; i < pfds_.size(); ++i) {
-            if (pfds_[i].fd > 9)
-                std::cout << "here " << pfds_[i].fd << " ";
-        }*/
-        //std::cout << std::endl;
 
         for (int i = 0; i < pfds_.size(); ++i) {
-            // delete invalid tunnels
-            if (try_disconnect(pfds_[i].fd)) break;
-
             if (pfds_[i].revents == 0) continue;
 
             if (pfds_[i].fd == domain_names_resolver_sock_.get_fd()) {
                 uint16_t client_fd;
                 int n;
 
-                std::cout << "resolver\n";
+                std::cout << "[!] domain name resolved\n";
 
                 try {
                     n = domain_names_resolver_sock_.receive();
                 } catch (ReceiveFailedException &e) {
                     std::cerr << "[-] error while recieve data from internal UDP socket" << e.what() << std::endl;
-                    try_disconnect(pfds_[i].fd);
                     break;
                 }
 
@@ -180,16 +155,30 @@ void SocksServer::accept_connections() {
                 }
             } else if ((pfds_[i].revents & POLLRDHUP) | (pfds_[i].revents & POLLHUP)) {
                 std::cout << "[+] disconnected with client\n";
-                try_disconnect(pfds_[i].fd);
+                if(client_connections_.contains(pfds_[i].fd)) {
+                    client_connections_[pfds_[i].fd]->close_connection();
+                } else {
+                    server_connections_[pfds_[i].fd]->close_connection();
+                }
             } else {
 				std::cerr << "[-] unexpected " << strerror(errno) << pfds_[i].fd << std::endl;
-                try_disconnect(pfds_[i].fd);
+                if(client_connections_.contains(pfds_[i].fd)) {
+                    client_connections_[pfds_[i].fd]->close_connection();
+                } else {
+                    server_connections_[pfds_[i].fd]->close_connection();
+                }
                 return;
 			}
 
             pfds_[i].revents = 0;
         }
+
+        while (!queue_to_delte_.empty()) {
+            try_disconnect(queue_to_delte_.back());
+            queue_to_delte_.pop_back();
+        }
     }
 
+    resolver->Stop();
     delete resolver;
 }

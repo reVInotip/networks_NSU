@@ -6,7 +6,9 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/lab2/tcp_transfer/include",
                 "${workspaceFolder}/lab1/multicast_server/include",
-                "${workspaceFolder}/lab3/socks_proxy/include"
+                "${workspaceFolder}/lab3/socks_proxy/include",
+                "${workspaceFolder}/lab3/socks_proxy/dns-resolver/async_dns_resolver/include",
+                "${workspaceFolder}/lab3/socks_proxy/dns-resolver/async_dns_resolver/include"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/g++",

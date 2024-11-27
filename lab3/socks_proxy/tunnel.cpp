@@ -1,9 +1,6 @@
 #include "tunnel.h"
 #include "socket.h"
-//#include <ares.h>
-//#include <cpp-dns.hpp>
-
-//using namespace YukiWorkshop;
+#include "dns_resolve/dns_resolve.h"
 
 #include <iostream>
 #include <string>
@@ -23,6 +20,11 @@ Tunnel::Tunnel(unsigned char socks_version, dnsresolve::Resolver *resolver, Sock
     client_->setoptions(Socket::SockOptions::NONBLOCK);
 };
 
+Tunnel::~Tunnel() {
+    delete server_;
+    delete client_;
+}
+
 void Tunnel::recieve_from_client() noexcept {
     string client_address;
 
@@ -32,29 +34,28 @@ void Tunnel::recieve_from_client() noexcept {
     } catch (ReceiveFailedException &e) {
         std::cerr << "[-] error while recieve data from client (" << client_address << "):" << e.what() << std::endl;
         disconnect();
+        return;
     }
 
     if (count_bytes == 0) {
         std::cout << "[+] disconnected with " << client_address << std::endl;
         disconnect();
+        return;
     } else if (count_bytes < 0) {
         std::cout << "[~] end of data from clent: " << client_address << std::endl;
     }
 
     client_->buffer_size_ = count_bytes;
     client_->connected_address_ = client_address;
-
-    //std::cerr << "recv from client " <<client_->buffer_.get() << std::endl;
 }
 
 void Tunnel::send_to_server() noexcept {
     if (client_->buffer_size_ == 0) return;
     if (state_ != TunnelState::CONNECTED) {
-        //std::cerr << "[-] tunnel not connected" << static_cast<int>(state_) << std::endl;
+        std::cerr << "[-] tunnel not connected" << static_cast<int>(state_) << std::endl;
         return;
     }
 
-    std::cout << "[~] retranslate messages from clent: " << client_->connected_address_ << std::endl;
     try {
         server_->send_to(client_->buffer_.get(), client_->buffer_size_);
     } catch (SendFailedException &e) {
@@ -62,13 +63,11 @@ void Tunnel::send_to_server() noexcept {
     }
 
     client_->buffer_size_ = 0;
-
-    //std::cerr << "send to server " << client_->buffer_.get() << std::endl;
 }
 
 void Tunnel::recieve_from_server() noexcept {
     if (state_ != TunnelState::CONNECTED) {
-        //std::cerr << "[-] tunnel not connected\n";
+        std::cerr << "[-] tunnel not connected\n";
         return;
     } 
     string server_address;
@@ -79,24 +78,24 @@ void Tunnel::recieve_from_server() noexcept {
     } catch (ReceiveFailedException &e) {
         std::cerr << "[-] error while recieve data from server (" << server_address << "):" << e.what() << std::endl;
         disconnect();
+        return;
     }
 
     if (count_bytes == 0) {
         std::cout << "[+] disconnected with " << server_address << std::endl;
         disconnect();
+        return;
     } else if (count_bytes < 0) {
         std::cout << "[~] end of data from clent: " << server_address << std::endl;
     }
 
     server_->buffer_size_ = count_bytes;
     server_->connected_address_ = server_address;
-
-    //std::cerr << "recv from server " << server_->buffer_.get() << std::endl;
 }
 
 void Tunnel::send_to_client() noexcept {
     if (server_->buffer_size_ == 0) return;
-    std::cout << "[~] retranslate messages from server: " << server_->connected_address_ << std::endl;
+
     try {
         client_->send_to(server_->buffer_.get(), server_->buffer_size_);
     } catch (SendFailedException &e) {
@@ -108,46 +107,11 @@ void Tunnel::send_to_client() noexcept {
     if (state_ == TunnelState::HALF_DISCONNECT) {
         disconnect();
     }
-
-    //std::cerr << "send to client " << server_->buffer_.get() << std::endl;
 }
 
-
-/* Callback that is called when DNS query is finished */
-/*void addrinfo_cb(void *arg, int status, int timeouts,
-                        struct ares_addrinfo *result) {
-    Tunnel *curr_tunnel = (Tunnel *) arg;
-    std::cout << "Result: " << ares_strerror(status) << " timeouts: " << timeouts << std::endl;
-
-    string server_ip;
-    if (result) {
-        struct ares_addrinfo_node *node;
-        for (node = result->nodes; node != NULL; node = node->ai_next) {
-            char addr_buf[64] = "";
-            const void *ptr = nullptr;
-            if (node->ai_family == AF_INET) {
-                const struct sockaddr_in *in_addr =
-                (const struct sockaddr_in *)((void *)node->ai_addr);
-                ptr = &in_addr->sin_addr;
-            } else if (node->ai_family == AF_INET6) {
-                const struct sockaddr_in6 *in_addr =
-                (const struct sockaddr_in6 *)((void *)node->ai_addr);
-                ptr = &in_addr->sin6_addr;
-            } else {
-                continue;
-            }
-            ares_inet_ntop(node->ai_family, ptr, addr_buf, sizeof(addr_buf));
-            printf("Addr: %s\n", addr_buf);
-
-            server_ip = addr_buf;
-        }
-    }
-
-    curr_tunnel->try_connect(server_ip, curr_tunnel->get_client_connected_port());
-    ares_freeaddrinfo(result);
-}*/
-
 void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
+    if (state_ == TunnelState::DISCONNECT) return;
+
     if (type == RequestType::OUT && source == RequestSource::CLIENT) {
         send_to_client();
     } else if (type == RequestType::OUT && source == RequestSource::SERVER) {
@@ -202,25 +166,23 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
                     std::cout << "[!] getting command to make TCP/IP connect by domain name: " << domain_name
                         << " from client: " << client_->connected_address_ << std::endl;
 
-                    uint16_t port = (client_->buffer_.get()[i] & 0b1111111100000000) | (client_->buffer_.get()[i + 1] & 0b0000000011111111);
+                    uint16_t port = client_->buffer_.get()[i];
+                    port <<= 8;
+                    port |= client_->buffer_.get()[i + 1];
 
                     resolver_->AsyncResolve(domain_name, [&](const dnsresolve::Result& result) -> void {
                         if (result.HasError()) {
-                            std::cout << result.Error() << std::endl;
+                            std::cout << result.ErrorText() << std::endl;
                         } else {
-                            std::cout << result.Name() << std::endl;
                             for (auto &it : result) {
-                                string server_ip;
-                                std::stringstream ss {server_ip};
-                                ss << it;
                                 Socket sock {Socket::SockFamily::IPv4, Socket::SockType::DATAGRAMM, client_->buffer_capacity_};
                                 sock.setoptions(Socket::SockOptions::NONBLOCK);
 
                                 string ip = resolver_sock_->get_ip() == "localhost" ?
                                     "127.0.0.1" : resolver_sock_->get_ip();
 
-                                this->server_->connected_address_ = ip;
-                                this->server_->connected_port_ = port;
+                                this->client_->connected_address_ = it;
+                                this->client_->connected_port_ = port;
 
                                 string message = std::to_string(this->client_->get_fd());
                                 
@@ -230,31 +192,6 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
                         }
                     });
                     resolver_->Run();
-
-                    /*resolver_->resolve_a4(domain_name, [this, port, len](int err, auto& addrs, auto& qname, auto& cname, uint ttl) {
-                        if (!err) {
-                            for (auto &it : addrs) {
-                                string server_ip = it.to_string();
-                                Socket sock {Socket::SockFamily::IPv4, Socket::SockType::DATAGRAMM, client_->buffer_capacity_};
-                                sock.setoptions(Socket::SockOptions::NONBLOCK);
-
-                                string ip = resolver_sock_->get_ip() == "localhost" ?
-                                    "127.0.0.1" : resolver_sock_->get_ip();
-
-                                this->server_->connected_address_ = ip;
-                                this->server_->connected_port_ = port;
-
-                                string message = std::to_string(this->client_->get_fd());
-                                
-                                sock.send_to(ip, resolver_sock_->get_port(), message.c_str(), message.size());
-                                break;
-                            }
-                        }
-                    });*/
-
-                    //prepare dns request
-                    /*ares_getaddrinfo(resolver_->channel_, domain_name.c_str(), NULL,
-                        &(resolver_->hints_), addrinfo_cb, this);*/
                     
                     std::cout << "[!] start resolve domain name\n";
                 }
@@ -262,11 +199,10 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
                 std::cerr << "[-] client (" << client_->connected_address_ << ") command is wrong or unsupported" << std::endl;
             }
         } else if (state_ == TunnelState::UNINIT) {
-            if (client_->buffer_.get()[1] != 0x00) {
-                //...
+            if (client_->buffer_.get()[1] != static_cast<unsigned char>(AuthMethod::NO_AUTH)) {
+                std::cerr << "[-] unsupported authentification method\n";
+                return;
             }
-
-            //ares_process_fd(resolver_->channel_, client_->get_fd(), client_->get_fd());
 
             server_->buffer_.get()[0] = server_socks_version_;
             server_->buffer_.get()[1] = static_cast<unsigned char>(AuthMethod::NO_AUTH);
@@ -280,6 +216,8 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
 }
 
 bool Tunnel::try_connect(const string &ip, uint16_t port) {
+    if (state_ == TunnelState::DISCONNECT) return false;
+
     server_->buffer_.get()[0] = server_socks_version_;
     try {
         server_->connect_with(ip, port);
@@ -326,8 +264,15 @@ bool Tunnel::try_connect(const string &ip, uint16_t port) {
     return true;
 }
 
+void Tunnel::close_connection() noexcept {
+    disconnect();
+}
+
 void Tunnel::disconnect() noexcept {
     state_ = TunnelState::DISCONNECT;
+
+    DeleteFromPollVectorEvent event {client_->get_fd(), server_->get_fd()};
+    update(event);
 }
 
 int Tunnel::get_serverfd() noexcept {
@@ -344,6 +289,7 @@ int Tunnel::get_clientfd() noexcept {
 string Tunnel::get_client_connected_ip() noexcept {
     return client_->connected_address_;
 }
+
 uint16_t Tunnel::get_client_connected_port() noexcept {
     return client_->connected_port_;
 }

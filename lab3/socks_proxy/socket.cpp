@@ -75,8 +75,6 @@ void Socket::connect_with(const string &ip, uint16_t port) {
     server_sockaddr.sin_port = htons(port);
     server_sockaddr.sin_addr.s_addr = inet_addr(ip.c_str());
 
-    std::cout << ip << std::endl;
-
     if (
         connect(sockfd_,
             (const sockaddr *) &server_sockaddr,
