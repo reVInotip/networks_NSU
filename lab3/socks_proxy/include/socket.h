@@ -3,6 +3,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include "buffer.h"
 
 #pragma once
 
@@ -36,9 +37,7 @@ namespace socks_socket {
         public:
             string connected_address_;
             uint16_t connected_port_;
-            std::shared_ptr<unsigned char[]> buffer_;
-            size_t buffer_capacity_;
-            size_t buffer_size_;
+            Buffer *buffer_;
         
         public:
             Socket() = default;

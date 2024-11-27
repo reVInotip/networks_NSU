@@ -45,24 +45,23 @@ void Tunnel::recieve_from_client() noexcept {
         std::cout << "[~] end of data from clent: " << client_address << std::endl;
     }
 
-    client_->buffer_size_ = count_bytes;
     client_->connected_address_ = client_address;
 }
 
 void Tunnel::send_to_server() noexcept {
-    if (client_->buffer_size_ == 0) return;
+    if (client_->buffer_->empty()) return;
     if (state_ != TunnelState::CONNECTED) {
         std::cerr << "[-] tunnel not connected" << static_cast<int>(state_) << std::endl;
         return;
     }
 
     try {
-        server_->send_to(client_->buffer_.get(), client_->buffer_size_);
+        server_->send_to(client_->buffer_->data(), client_->buffer_->buffer_size_);
     } catch (SendFailedException &e) {
         std::cerr << "[-] error while sending server (" << client_->connected_address_ << ") message to client:" << e.what() << std::endl;
     }
 
-    client_->buffer_size_ = 0;
+    client_->buffer_->clear();
 }
 
 void Tunnel::recieve_from_server() noexcept {
@@ -89,20 +88,19 @@ void Tunnel::recieve_from_server() noexcept {
         std::cout << "[~] end of data from clent: " << server_address << std::endl;
     }
 
-    server_->buffer_size_ = count_bytes;
     server_->connected_address_ = server_address;
 }
 
 void Tunnel::send_to_client() noexcept {
-    if (server_->buffer_size_ == 0) return;
+    if (server_->buffer_->empty()) return;
 
     try {
-        client_->send_to(server_->buffer_.get(), server_->buffer_size_);
+        client_->send_to(server_->buffer_->data(), server_->buffer_->buffer_size_);
     } catch (SendFailedException &e) {
         std::cerr << "[-] error while sending server (" << server_->connected_address_ << ") message to client:" << e.what() << std::endl;
     }
 
-    server_->buffer_size_ = 0;
+    server_->buffer_->clear();
 
     if (state_ == TunnelState::HALF_DISCONNECT) {
         disconnect();
@@ -125,57 +123,59 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
             return;
         }
 
-        if (!compare_versions(client_->buffer_.get()[0])) {
+        if (!compare_versions((*client_->buffer_)[0])) {
             std::cerr << "[-] client (" << client_->connected_address_ << ") version of SOCKS protocol (" <<
-             client_->buffer_.get()[0] << ") does not match with server (" << server_socks_version_ << ")\n";
+             (*client_->buffer_)[0] << ") does not match with server (" << server_socks_version_ << ")\n";
             
-            client_->buffer_size_ = 0;
+            client_->buffer_->clear();
             return;
         }
         if (state_ == TunnelState::CONNECTING) {
             // connect by IPv4
-            if (client_->buffer_.get()[1] == static_cast<unsigned char>(Commands::MakeTCPConnection)) {
-                if (client_->buffer_size_ < static_cast<int>(ipv4_request_len)) return; // Do something
+            if ((*client_->buffer_)[1] == static_cast<unsigned char>(Commands::MakeTCPConnection)) {
+                if (client_->buffer_->buffer_size_ < static_cast<int>(ipv4_request_len)) return; // Do something
                 
-                if (client_->buffer_.get()[3] == static_cast<unsigned char>(AddrType::IPv4)) {
+                if ((*client_->buffer_)[3] == static_cast<unsigned char>(AddrType::IPv4)) {
                     std::cout << "[!] getting command to make TCP/IP connect by ip from client: " << client_->connected_address_ << std::endl;
 
-                    string address = std::to_string(client_->buffer_.get()[4]) + "." +
-                            std::to_string(client_->buffer_.get()[5]) + "." +
-                            std::to_string(client_->buffer_.get()[6]) + "." +
-                            std::to_string(client_->buffer_.get()[7]);
-                    uint16_t port = (client_->buffer_.get()[8] & 0b1111111100000000) | (client_->buffer_.get()[9] & 0b0000000011111111);
+                    string address = std::to_string((*client_->buffer_)[4]) + "." +
+                            std::to_string((*client_->buffer_)[5]) + "." +
+                            std::to_string((*client_->buffer_)[6]) + "." +
+                            std::to_string((*client_->buffer_)[7]);
+                    uint16_t port = (*client_->buffer_)[8];
+                    port <<= 8;
+                    port |= (*client_->buffer_)[9];
 
                     try {
                         if(!try_connect(address, port)) return;
                     } catch (SendFailedException &e) {
                         std::cerr << "[-] error while sending server (" << client_->connected_address_ << ") message to client:" << e.what() << std::endl;
                     }
-                } else if (client_->buffer_.get()[3] == static_cast<unsigned char>(AddrType::DOMAIN)) {
-                    if (client_->buffer_size_ < static_cast<int>(min_request_len)) return; // Do something
+                } else if ((*client_->buffer_)[3] == static_cast<unsigned char>(AddrType::DOMAIN)) {
+                    if (client_->buffer_->buffer_size_ < static_cast<int>(min_request_len)) return; // Do something
 
-                    int len = static_cast<int>(client_->buffer_.get()[4]);
+                    int len = static_cast<int>((*client_->buffer_)[4]);
                     string domain_name;
 
                     int i = 5;
                     for (int j = 0; j < len; ++i, ++j) {
-                        domain_name += client_->buffer_.get()[i];
+                        domain_name += (*client_->buffer_)[i];
                     }
 
 
                     std::cout << "[!] getting command to make TCP/IP connect by domain name: " << domain_name
                         << " from client: " << client_->connected_address_ << std::endl;
 
-                    uint16_t port = client_->buffer_.get()[i];
+                    uint16_t port = (*client_->buffer_)[i];
                     port <<= 8;
-                    port |= client_->buffer_.get()[i + 1];
+                    port |= (*client_->buffer_)[i + 1];
 
                     resolver_->AsyncResolve(domain_name, [&](const dnsresolve::Result& result) -> void {
                         if (result.HasError()) {
                             std::cout << result.ErrorText() << std::endl;
                         } else {
                             for (auto &it : result) {
-                                Socket sock {Socket::SockFamily::IPv4, Socket::SockType::DATAGRAMM, client_->buffer_capacity_};
+                                Socket sock {Socket::SockFamily::IPv4, Socket::SockType::DATAGRAMM, client_->buffer_->capacity()};
                                 sock.setoptions(Socket::SockOptions::NONBLOCK);
 
                                 string ip = resolver_sock_->get_ip() == "localhost" ?
@@ -199,16 +199,10 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
                 std::cerr << "[-] client (" << client_->connected_address_ << ") command is wrong or unsupported" << std::endl;
             }
         } else if (state_ == TunnelState::UNINIT) {
-            if (client_->buffer_.get()[1] != static_cast<unsigned char>(AuthMethod::NO_AUTH)) {
-                std::cerr << "[-] unsupported authentification method\n";
-                return;
-            }
+            (*server_->buffer_)[0] = server_socks_version_;
+            (*server_->buffer_)[1] = static_cast<unsigned char>(AuthMethod::NO_AUTH);
 
-            server_->buffer_.get()[0] = server_socks_version_;
-            server_->buffer_.get()[1] = static_cast<unsigned char>(AuthMethod::NO_AUTH);
-
-            server_->buffer_size_ = 2;
-            client_->buffer_size_ = 0;
+            client_->buffer_->clear();
 
             state_ = TunnelState::CONNECTING;
         }
@@ -218,20 +212,20 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
 bool Tunnel::try_connect(const string &ip, uint16_t port) {
     if (state_ == TunnelState::DISCONNECT) return false;
 
-    server_->buffer_.get()[0] = server_socks_version_;
+    (*server_->buffer_)[0] = server_socks_version_;
     try {
         server_->connect_with(ip, port);
         server_->setoptions(Socket::SockOptions::NONBLOCK);
     } catch (ConnectFailedException &e) {
         std::cerr << "[-] can not make new connection because: " << e.what() << std::endl;
 
-        server_->buffer_.get()[1] = static_cast<unsigned char>(RequestAnswer::REJECT);
+        (*server_->buffer_)[1] = static_cast<unsigned char>(RequestAnswer::REJECT);
         state_ = TunnelState::HALF_DISCONNECT;
         return false;
     } catch (SetoptionsFailedException &e) {
         std::cerr << "[-] can not make server socket nonblocking because: " << e.what() << std::endl;
 
-        server_->buffer_.get()[1] = static_cast<unsigned char>(RequestAnswer::SOCKS_SERVER_ERROR);
+        (*server_->buffer_)[1] = static_cast<unsigned char>(RequestAnswer::SOCKS_SERVER_ERROR);
         state_ = TunnelState::HALF_DISCONNECT;
         return false;
     }
@@ -243,23 +237,22 @@ bool Tunnel::try_connect(const string &ip, uint16_t port) {
     // set connection set
     state_ = TunnelState::CONNECTED;
 
-    server_->buffer_.get()[1] = static_cast<unsigned char>(RequestAnswer::OK);
+    (*server_->buffer_)[1] = static_cast<unsigned char>(RequestAnswer::OK);
 
     // set ip address to answer
-    server_->buffer_.get()[3] = static_cast<unsigned char>(AddrType::IPv4);
+    (*server_->buffer_)[3] = static_cast<unsigned char>(AddrType::IPv4);
 
     string ip_part;
     stringstream stream {ip};
     for (int i = 4; std::getline(stream, ip_part, '.'); ++i) {
-        server_->buffer_.get()[i] = static_cast<unsigned char>(std::atoi(ip_part.c_str()));
+        (*server_->buffer_)[i] = static_cast<unsigned char>(std::atoi(ip_part.c_str()));
     }
 
     // set port to answer
-    server_->buffer_.get()[8] = client_->buffer_.get()[8];
-    server_->buffer_.get()[9] = client_->buffer_.get()[9];
+    (*server_->buffer_)[8] = (*client_->buffer_)[8];
+    (*server_->buffer_)[9] = (*client_->buffer_)[9];
 
-    server_->buffer_size_ = ipv4_answer_len;
-    client_->buffer_size_ = 0;
+    client_->buffer_->clear();
 
     return true;
 }
