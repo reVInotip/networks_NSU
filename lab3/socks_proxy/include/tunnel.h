@@ -115,6 +115,13 @@ namespace tunnel {
             inline bool compare_versions(const unsigned char client_socks_version) const {
                 return server_socks_version_ == client_socks_version;
             }
+            
+            uint16_t make_port(unsigned char first, unsigned char second) {
+                uint16_t port = first;
+                port <<= 8;
+                port |= second;
+                return port;
+            }
 
             void recieve_from_client() noexcept;
             void recieve_from_server() noexcept;
