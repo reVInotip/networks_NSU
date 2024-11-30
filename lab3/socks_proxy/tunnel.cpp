@@ -137,14 +137,12 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
                 
                 if (client_->buffer()[3] == static_cast<unsigned char>(AddrType::IPv4)) {
                     std::cout << "[!] getting command to make TCP/IP connect by ip from client: " << client_->connected_address_ << std::endl;
-
-                    string address = std::to_string(client_->buffer()[4]) + "." +
-                            std::to_string(client_->buffer()[5]) + "." +
-                            std::to_string(client_->buffer()[6]) + "." +
-                            std::to_string(client_->buffer()[7]);
-                    uint16_t port = client_->buffer()[8];
-                    port <<= 8;
-                    port |= client_->buffer()[9];
+                  
+                    string address = std::to_string(client_->buffer_.get()[4]) + "." +
+                            std::to_string(client_->buffer_.get()[5]) + "." +
+                            std::to_string(client_->buffer_.get()[6]) + "." +
+                            std::to_string(client_->buffer_.get()[7]);
+                    uint16_t port = make_port(client_->buffer_.get()[8], client_->buffer_.get()[9]);
 
                     try {
                         if(!try_connect(address, port)) return;
@@ -166,10 +164,8 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
                     std::cout << "[!] getting command to make TCP/IP connect by domain name: " << domain_name
                         << " from client: " << client_->connected_address_ << std::endl;
 
-                    uint16_t port = client_->buffer()[i];
-                    port <<= 8;
-                    port |= client_->buffer()[i + 1];
-
+                    uint16_t port = make_port(client_->buffer_.get()[i], client_->buffer_.get()[i + 1]);
+                  
                     resolver_->AsyncResolve(domain_name, [&](const dnsresolve::Result& result) -> void {
                         if (result.HasError()) {
                             std::cout << result.ErrorText() << std::endl;
@@ -280,10 +276,12 @@ int Tunnel::get_clientfd() noexcept {
 }
 
 string Tunnel::get_client_connected_ip() noexcept {
+    if (client_ == nullptr) return "unknown";
     return client_->connected_address_;
 }
 
 uint16_t Tunnel::get_client_connected_port() noexcept {
+    if (client_ == nullptr) return -1;
     return client_->connected_port_;
 }
 

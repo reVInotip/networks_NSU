@@ -111,6 +111,11 @@ void SocksServer::accept_connections() {
                 );
 
                 Tunnel *tunnel = client_connections_[client_fd];
+                if (tunnel == nullptr) {
+                    std::cerr << "[-] connection already broken\n";
+                    break;
+                }
+                
                 string ip = tunnel->get_client_connected_ip();
                 uint16_t port = tunnel->get_client_connected_port();
 
