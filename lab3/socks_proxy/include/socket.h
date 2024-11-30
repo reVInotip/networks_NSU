@@ -33,11 +33,11 @@ namespace socks_socket {
             int sockfd_;
             string ip_;
             uint16_t port_;
+            Buffer *buffer_;
         
         public:
             string connected_address_;
             uint16_t connected_port_;
-            Buffer *buffer_;
         
         public:
             Socket() = default;
@@ -56,6 +56,7 @@ namespace socks_socket {
             int get_fd() const noexcept;
             uint16_t get_port() const noexcept;
             string get_ip() const noexcept;
+            Buffer &buffer() const noexcept;
 
             int receive(string &address);
             int receive();

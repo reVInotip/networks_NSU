@@ -11,7 +11,7 @@ class Buffer final {
         size_t buffer_size_;
     
     public:
-        Buffer(size_t cap): buffer_ {new unsigned char [cap]}, buffer_capacity_ {cap} {}
+        Buffer(size_t cap): buffer_ {new unsigned char [cap]}, buffer_capacity_ {cap}, buffer_size_ {0} {}
         void clear() {buffer_size_ = 0;}
         size_t capacity() {return buffer_capacity_;}
         void fill(unsigned char data) {memset(buffer_.get(), data, buffer_capacity_);}

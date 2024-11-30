@@ -27,6 +27,7 @@ Socket::Socket(int sockfd, SockFamily family, SockType type, size_t buffer_capac
 }
 
 Socket::~Socket() {
+    free(buffer_);
     close(sockfd_);
 }
 
@@ -141,6 +142,10 @@ uint16_t Socket::get_port() const noexcept {
 
 string Socket::get_ip() const noexcept {
     return ip_;
+}
+
+Buffer &Socket::buffer() const noexcept {
+    return *buffer_; 
 }
 
 int Socket::receive(string &address) {
