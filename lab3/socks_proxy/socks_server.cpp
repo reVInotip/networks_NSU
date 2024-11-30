@@ -107,7 +107,7 @@ void SocksServer::accept_connections() {
                 }
 
                 client_fd = std::atoi(
-                    reinterpret_cast<char *>(domain_names_resolver_sock_.buffer_.get())
+                    reinterpret_cast<char *>(domain_names_resolver_sock_.buffer().data())
                 );
 
                 Tunnel *tunnel = client_connections_[client_fd];

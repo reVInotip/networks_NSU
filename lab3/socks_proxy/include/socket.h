@@ -3,6 +3,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include "buffer.h"
 
 #pragma once
 
@@ -32,13 +33,11 @@ namespace socks_socket {
             int sockfd_;
             string ip_;
             uint16_t port_;
+            Buffer *buffer_;
         
         public:
             string connected_address_;
             uint16_t connected_port_;
-            std::shared_ptr<unsigned char[]> buffer_;
-            size_t buffer_capacity_;
-            size_t buffer_size_;
         
         public:
             Socket() = default;
@@ -57,6 +56,7 @@ namespace socks_socket {
             int get_fd() const noexcept;
             uint16_t get_port() const noexcept;
             string get_ip() const noexcept;
+            Buffer &buffer() const noexcept;
 
             int receive(string &address);
             int receive();

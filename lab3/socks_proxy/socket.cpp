@@ -6,24 +6,28 @@
 #include <cstring>
 #include <iostream>
 #include <memory>
+#include "buffer.h"
 
 using namespace socks_socket;
 
 //==================Socket=====================
 
 Socket::Socket(SockFamily family, SockType type, size_t buffer_capacity):
-    family_ {family}, type_ {type}, ip_ {"localhost"}, port_ {0}, buffer_capacity_ {buffer_capacity},
-    buffer_ {new unsigned char [buffer_capacity]}
+    family_ {family}, type_ {type}, ip_ {"localhost"}, port_ {0}
 {
+    buffer_ = new Buffer {buffer_capacity};
     sockfd_ = socket(static_cast<int>(family), static_cast<int>(type), 0);
     if (sockfd_ < 0) throw OpenSocketException {strerror(errno), errno};
 }
 
 Socket::Socket(int sockfd, SockFamily family, SockType type, size_t buffer_capacity):
-    family_ {family}, type_ {type}, sockfd_ {sockfd}, buffer_capacity_ {buffer_capacity},
-    buffer_ {new unsigned char [buffer_capacity]} {}
+    family_ {family}, type_ {type}, sockfd_ {sockfd}
+{
+    buffer_ = new Buffer {buffer_capacity};
+}
 
 Socket::~Socket() {
+    free(buffer_);
     close(sockfd_);
 }
 
@@ -102,7 +106,7 @@ Socket *Socket::accept_connection(string &address) const {
     
     address = str_addr + string {":"} + std::to_string(ntohs(cli_addr.sin_port));
 
-    return new Socket {conn_sock, family_, type_, buffer_capacity_};
+    return new Socket {conn_sock, family_, type_, buffer_->capacity()};
 }
 
 void Socket::make_listen(int count_connections) {
@@ -140,13 +144,17 @@ string Socket::get_ip() const noexcept {
     return ip_;
 }
 
+Buffer &Socket::buffer() const noexcept {
+    return *buffer_; 
+}
+
 int Socket::receive(string &address) {
     struct sockaddr_in src_addr;
     socklen_t socklen = sizeof(src_addr);
     char str_addr[INET_ADDRSTRLEN];
 
-    bzero(buffer_.get(), buffer_capacity_);
-    int n = recvfrom(sockfd_, buffer_.get(), buffer_capacity_, 0, (struct sockaddr *) &src_addr, &socklen);
+    buffer_->fill(0);
+    int n = recvfrom(sockfd_, buffer_->data(), buffer_->capacity(), 0, (struct sockaddr *) &src_addr, &socklen);
     if (n < 0) {
         if (is_nonblocking() && (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOSPC))
             return -1;
@@ -158,21 +166,21 @@ int Socket::receive(string &address) {
     
     address = str_addr + string {":"} + std::to_string(ntohs(src_addr.sin_port));
 
-    buffer_size_ = n;
+    buffer_->buffer_size_ = n;
 
     return n;
 }
 
 int Socket::receive() {
-    bzero(buffer_.get(), buffer_capacity_);
-    int n = recv(sockfd_, buffer_.get(), buffer_capacity_, 0);
+    buffer_->fill(0);
+    int n = recv(sockfd_, buffer_->data(), buffer_->capacity(), 0);
     if (n < 0) {
         if (is_nonblocking() && (errno == EAGAIN || errno == EWOULDBLOCK || errno == ENOSPC))
             return -1;
         throw ReceiveFailedException {strerror(errno), errno};    
     }
 
-    buffer_size_ = n;
+    buffer_->buffer_size_ = n;
 
     return n;
 }
