@@ -138,11 +138,11 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
                 if (client_->buffer()[3] == static_cast<unsigned char>(AddrType::IPv4)) {
                     std::cout << "[!] getting command to make TCP/IP connect by ip from client: " << client_->connected_address_ << std::endl;
                   
-                    string address = std::to_string(client_->buffer_.get()[4]) + "." +
-                            std::to_string(client_->buffer_.get()[5]) + "." +
-                            std::to_string(client_->buffer_.get()[6]) + "." +
-                            std::to_string(client_->buffer_.get()[7]);
-                    uint16_t port = make_port(client_->buffer_.get()[8], client_->buffer_.get()[9]);
+                    string address = std::to_string(client_->buffer()[4]) + "." +
+                            std::to_string(client_->buffer()[5]) + "." +
+                            std::to_string(client_->buffer()[6]) + "." +
+                            std::to_string(client_->buffer()[7]);
+                    uint16_t port = make_port(client_->buffer()[8], client_->buffer()[9]);
 
                     try {
                         if(!try_connect(address, port)) return;
@@ -164,7 +164,7 @@ void Tunnel::request_handler(RequestType type, RequestSource source) noexcept {
                     std::cout << "[!] getting command to make TCP/IP connect by domain name: " << domain_name
                         << " from client: " << client_->connected_address_ << std::endl;
 
-                    uint16_t port = make_port(client_->buffer_.get()[i], client_->buffer_.get()[i + 1]);
+                    uint16_t port = make_port(client_->buffer()[i], client_->buffer()[i + 1]);
                   
                     resolver_->AsyncResolve(domain_name, [&](const dnsresolve::Result& result) -> void {
                         if (result.HasError()) {
