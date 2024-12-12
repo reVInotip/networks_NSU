@@ -13,8 +13,8 @@ namespace PlacesApi
             {
                 string[] coord = coordString.Split(';');
                 var message = await httpClient.GetAsync($"https://api.openweathermap.org/data/2.5/weather?lat={coord[1]}&lon={coord[0]}&appid=8dfba83e7b60159cda4f0733976edb12");
-                string response = await message.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<WeatherJson>(response);
+                byte[] response = await message.Content.ReadAsByteArrayAsync();
+                return await JsonSerializer.DeserializeAsync<WeatherJson>(new MemoryStream(response));
             }
         }
     }
