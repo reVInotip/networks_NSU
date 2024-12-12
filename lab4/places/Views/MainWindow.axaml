@@ -1,20 +1,62 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="using:places.ViewModels"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
         x:Class="places.Views.MainWindow"
-        x:DataType="vm:MainWindowViewModel"
-        Icon="/Assets/avalonia-logo.ico"
+        Background="LightBlue"
         Title="places">
+        
+    <Grid RowDefinitions="Auto, *, Auto">
+        <StackPanel 
+            Grid.Row="0" 
+            Orientation="Horizontal">
+            <TextBox 
+                x:Name="Search"
+                MinWidth="200"
+                MinHeight="50"
+                Watermark="Enter the place to search"/>
+            <Button 
+                x:Name="ButtonSearch" 
+                Content="Search"
+                Foreground="Black"
+                Click="ButtonOnClick"/>
+        </StackPanel>
 
-    <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainWindowViewModel/>
-    </Design.DataContext>
+        <Grid   
+            Grid.Row="1" 
+            ColumnDefinitions="*, 4*">
+            <Border
+                BorderBrush="DarkCyan"
+                BorderThickness="2"
+                Grid.Column="0"
+                Padding="5">
+                <ScrollViewer>
+                    <StackPanel 
+                        x:Name="ButtonsContainer"
+                        Orientation="Vertical">
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
 
-    <TextBlock Text="{Binding Greeting}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+            <Border
+                BorderBrush="DarkCyan"
+                BorderThickness="2"
+                Grid.Column="1"
+                Padding="5">
+                <ScrollViewer>
+                    <StackPanel
+                        x:Name="ReadContainer"
+                        Orientation="Vertical">
+                    </StackPanel>
+                </ScrollViewer>
+            </Border>
+        </Grid>
 
+        <StackPanel
+            Grid.Row="2"
+            Orientation="Horizontal"
+            x:Name="StatusPanel">
+        </StackPanel>
+    </Grid>
 </Window>
