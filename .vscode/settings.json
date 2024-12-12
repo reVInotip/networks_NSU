@@ -68,6 +68,19 @@
         "sstream": "cpp",
         "cerrno": "cpp",
         "internet": "cpp",
-        "timer": "cpp"
+        "timer": "cpp",
+        "variant": "cpp",
+        "set": "cpp",
+        "csignal": "cpp",
+        "any": "cpp",
+        "bitset": "cpp",
+        "complex": "cpp",
+        "coroutine": "cpp",
+        "unordered_set": "cpp",
+        "optional": "cpp",
+        "source_location": "cpp",
+        "iomanip": "cpp",
+        "cinttypes": "cpp",
+        "typeindex": "cpp"
     }
 }
