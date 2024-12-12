@@ -1,3 +1,4 @@
-namespace PlacesApi {
-    public abstract class InformJson {};
+namespace PlacesApi
+{
+    public abstract class InformJson { };
 }

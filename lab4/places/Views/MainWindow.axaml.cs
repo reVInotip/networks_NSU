@@ -19,7 +19,8 @@ public partial class MainWindow : Window
     private readonly RegexWorker regexWorker;
     private readonly StackPanel interestingPlacesStack = new();
 
-    public MainWindow() {
+    public MainWindow()
+    {
         InitializeComponent();
         placesService = new PlacesService();
         regexWorker = new(
@@ -45,18 +46,21 @@ public partial class MainWindow : Window
                 )
             )
         );
-        imageLoader.DefaultRequestHeaders.Add("user-agent", 
+        imageLoader.DefaultRequestHeaders.Add("user-agent",
             "Mozilla/5.0 (Windows; Windows NT 5.1; rv:1.9.2.4) Gecko/20100611 Firefox/3.6.4");
-        
+
         AddStatusTextBlock("Ready");
     }
     private async void ButtonOnClick(object? sender, RoutedEventArgs e)
     {
         ReadContainer.Children.Clear();
         var places = await placesService.GetPlaces(Search.Text);
-        if (places.Count == 0) {
+        if (places.Count == 0)
+        {
             AddPropertyTextBlock("Not found");
-        } else {
+        }
+        else
+        {
             CreateButtons(places);
         }
         Search.Clear();
@@ -68,14 +72,14 @@ public partial class MainWindow : Window
         AddStatusTextBlock("Search");
 
         foreach (var place in places)
-        {   
+        {
             Button button = Graphics.CreateButton(place.City == "unknown" ?
                                     $"Place: {place.Name} Kind: {place.Kind}" :
                                     $"Place: {place.Name} City: {place.City} Kind: {place.Kind}");
             await placesService.GetWeather(place);
             await placesService.GetInterestingPlaces(place);
             await placesService.GetDescription(place);
-            
+
             SetPlaceButtonAction(button, place);
 
             ButtonsContainer.Children.Add(button);
@@ -84,8 +88,10 @@ public partial class MainWindow : Window
         AddStatusTextBlock("Completed");
     }
 
-    private void SetPlaceButtonAction(Button placeButton, PlaceInfoDto place) {
-        placeButton.Click += (sender, e) => {
+    private void SetPlaceButtonAction(Button placeButton, PlaceInfoDto place)
+    {
+        placeButton.Click += (sender, e) =>
+        {
             {
                 ReadContainer.Children.Clear();
                 AddMainTextBlock(place.Name);
@@ -102,12 +108,15 @@ public partial class MainWindow : Window
                 interestingPlacesStack.Children.Clear();
 
                 Button showPlacesButton = Graphics.CreateButton("Show interesting places");
-                showPlacesButton.Click += async (sender, e) => {
+                showPlacesButton.Click += async (sender, e) =>
+                {
                     interestingPlacesStack.Children.Clear();
-                    foreach (var interestingPlace in place.InterestingPlaces) {
+                    foreach (var interestingPlace in place.InterestingPlaces)
+                    {
                         DescriptionDto? descr = new();
                         place.Description.TryGetValue(interestingPlace.Name, out descr);
-                        if (descr is not null) {
+                        if (descr is not null)
+                        {
                             AddInterestingPlaceTextBlock(interestingPlace.Name);
 
                             AddInterestingPlacePropertyTextBlock("Kinds: " + descr.Kinds);
@@ -117,14 +126,16 @@ public partial class MainWindow : Window
                             if (descr.Image is not null)
                                 await AddImage(descr.Image);
                         }
-                        else {
+                        else
+                        {
                             AddInterestingPlaceTextBlock(interestingPlace.Name);
                         }
                     }
                 };
 
                 Button hidePlacesButton = Graphics.CreateButton("Hide interesting places");
-                hidePlacesButton.Click += (sender, e) => {
+                hidePlacesButton.Click += (sender, e) =>
+                {
                     interestingPlacesStack.Children.Clear();
                 };
 
@@ -135,20 +146,26 @@ public partial class MainWindow : Window
         };
     }
 
-    private async Task AddImage(string image) {
-        if (regexWorker.Compare("wiki", image)) {
+    private async Task AddImage(string image)
+    {
+        if (regexWorker.Compare("wiki", image))
+        {
             var document = await new HtmlWeb().LoadFromWebAsync(image);
-            
+
             List<HtmlNode> imageNodes = [.. document.DocumentNode.SelectNodes("//img")];
-            if (imageNodes.Count != 0) {
-                foreach (HtmlNode imageNode in imageNodes) {
+            if (imageNodes.Count != 0)
+            {
+                foreach (HtmlNode imageNode in imageNodes)
+                {
                     if (
                         regexWorker.Compare("findImage", imageNode.Attributes["src"].Value) &&
                         imageNode.Attributes["alt"].Value.Contains("File:")
-                    ) {
+                    )
+                    {
                         var message = await imageLoader.GetAsync(imageNode.Attributes["src"].Value);
                         var img_response = await message.Content.ReadAsByteArrayAsync();
-                        if (img_response is not null) {
+                        if (img_response is not null)
+                        {
                             interestingPlacesStack.Children.Add(
                                 CreateImagePanel(img_response)
                             );
@@ -158,10 +175,13 @@ public partial class MainWindow : Window
                     }
                 }
             }
-        } else if (regexWorker.Compare("allCulture", image)) {
+        }
+        else if (regexWorker.Compare("allCulture", image))
+        {
             var message = await imageLoader.GetAsync(image);
             var img_response = await message.Content.ReadAsByteArrayAsync();
-            if (img_response is not null) {
+            if (img_response is not null)
+            {
                 interestingPlacesStack.Children.Add(
                     CreateImagePanel(img_response)
                 );
@@ -169,7 +189,8 @@ public partial class MainWindow : Window
         }
     }
 
-    private void AddStatusTextBlock(string status) {
+    private void AddStatusTextBlock(string status)
+    {
         StatusPanel.Children.Clear();
         StatusPanel.Children.Add(Graphics.CreateStatusTextBlock(status));
     }

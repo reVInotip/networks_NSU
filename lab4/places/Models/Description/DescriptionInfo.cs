@@ -1,6 +1,9 @@
-namespace PlacesApi {
-    namespace Description {
-        public class DescriptionJson : InformJson {
+namespace PlacesApi
+{
+    namespace Description
+    {
+        public class DescriptionJson : InformJson
+        {
             public string xid { get; set; } = "-1";
             public string name { get; set; } = "unknown";
             public string kinds { get; set; } = "undefined";
@@ -9,12 +12,14 @@ namespace PlacesApi {
             public Wiki wikipedia_extracts { get; set; } = new Wiki();
         }
 
-        public class Info {
+        public class Info
+        {
             public string descr { get; set; } = "nothing";
         }
 
 
-        public class Wiki {
+        public class Wiki
+        {
             public string text { get; set; } = "nothing";
         }
     }

@@ -7,21 +7,24 @@ using PlacesApi.InterestingPlaces;
 using PlacesApi.Location;
 using PlacesApi.Weather;
 
-public class ApiWorker {
+public class ApiWorker
+{
     private readonly HttpClient httpClient = new();
     private readonly WeatherApi weatherApi;
     private readonly LocationApi locationApi;
     private readonly DescriptionApi descriptionApi;
     private readonly InterestingPlacesApi interestingPlacesApi;
 
-    public ApiWorker() {
+    public ApiWorker()
+    {
         weatherApi = new WeatherApi();
         descriptionApi = new DescriptionApi();
         interestingPlacesApi = new InterestingPlacesApi();
         locationApi = new LocationApi();
     }
-    
-    public async Task<InformJson>? GetLocations(string nameLocation) {
+
+    public async Task<InformJson>? GetLocations(string nameLocation)
+    {
         return await locationApi.GetResult(nameLocation, httpClient);
     }
 
@@ -30,7 +33,8 @@ public class ApiWorker {
         return await weatherApi.GetResult(lon.ToString() + ";" + lat.ToString(), httpClient);
     }
 
-    public async Task<InformJson>? GetInterestingPlaces(double lat, double lon) {
+    public async Task<InformJson>? GetInterestingPlaces(double lat, double lon)
+    {
         return await interestingPlacesApi.GetResult(lon.ToString() + ";" + lat.ToString(), httpClient);
     }
 

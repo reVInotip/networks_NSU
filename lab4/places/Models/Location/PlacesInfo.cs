@@ -1,10 +1,14 @@
-namespace PlacesApi {
-    namespace Location {
-        public class LocationJson : InformJson {
+namespace PlacesApi
+{
+    namespace Location
+    {
+        public class LocationJson : InformJson
+        {
             public Place[]? hits { get; set; }
         }
 
-        public class Place {
+        public class Place
+        {
             public string name { get; set; } = "unknown";
             public string country { get; set; } = "unknown";
             public string city { get; set; } = "unknown";
@@ -13,7 +17,8 @@ namespace PlacesApi {
             public string osm_value { get; set; } = "nothing";
         }
 
-        public class Point {
+        public class Point
+        {
             public double lng { get; set; } = -1;
             public double lat { get; set; } = -1;
         }
